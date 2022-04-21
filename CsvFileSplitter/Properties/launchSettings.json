@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "CsvFileSplitter": {
+      "commandName": "Project",
+      "commandLineArgs": "-i \"C:\\Dev\\csv-file.csv\" -g \" Month Year:.*?(\\d{4})\" -o \"C:\\Dev\\csv-file-{group}.csv"
+    }
+  }
+}
