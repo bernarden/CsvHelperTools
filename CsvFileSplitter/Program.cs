@@ -8,6 +8,8 @@ namespace CsvFileSplitter;
 
 public class Program
 {
+    private const string OutputFileNameGroupReplacementString = "{group}";
+
     internal class Options
     {
         [Option('i', "input", Required = true, HelpText = "Path for input file.")]
@@ -22,7 +24,8 @@ public class Program
                 "Specified whether one csv row can be mapped to multiple output files based on regex matched groups. Default is false.")]
         public bool RowPerOutputFile { get; set; }
 
-        [Option('o', "output", Required = true, HelpText = "Path for output files.")]
+        [Option('o', "output", Required = true,
+            HelpText = $"Path for output files. File name must contain '{OutputFileNameGroupReplacementString}'.")]
         public string OutputFilePath { get; set; } = null!;
     }
 
@@ -53,6 +56,14 @@ public class Program
             return;
         }
 
+        if (!opts.OutputFilePath.Contains(OutputFileNameGroupReplacementString))
+        {
+            Console.WriteLine(
+                $"Invalid OutputFilePath argument: '{opts.OutputFilePath}'. Path must contain '{OutputFileNameGroupReplacementString}'.");
+            Console.WriteLine("Exiting...");
+            return;
+        }
+
         string columnsToGroupBy = opts.Group[..indexOfSemicolon];
         string regexToUse = opts.Group[++indexOfSemicolon..];
         Regex regex = new(regexToUse);
@@ -75,7 +86,7 @@ public class Program
             if (matches.Count == 0)
             {
                 const string unmatchedRegexGroup = "NoMatchesOnRegex";
-                CsvWriter csvWriter = GetCsvWriter(opts, csvWriters, unmatchedRegexGroup, csvReader.HeaderRecord);
+                CsvWriter csvWriter = GetCsvWriter(opts, csvWriters, unmatchedRegexGroup);
                 groupCounts.TryGetValue(unmatchedRegexGroup, out long currentCount);
                 groupCounts[unmatchedRegexGroup] = currentCount + 1;
                 csvWriter.WriteRecord(record);
@@ -86,7 +97,7 @@ public class Program
             if (opts.RowPerOutputFile && matches.Count > 1)
             {
                 const string multipleMatchesOnRegex = "MultipleMatchesOnRegex";
-                CsvWriter csvWriter = GetCsvWriter(opts, csvWriters, multipleMatchesOnRegex, csvReader.HeaderRecord);
+                CsvWriter csvWriter = GetCsvWriter(opts, csvWriters, multipleMatchesOnRegex);
                 groupCounts.TryGetValue(multipleMatchesOnRegex, out long currentCount);
                 groupCounts[multipleMatchesOnRegex] = currentCount + 1;
                 csvWriter.WriteRecord(record);
@@ -97,7 +108,7 @@ public class Program
             foreach (Match match in matches)
             {
                 string @group = match.Groups[1].Value;
-                CsvWriter csvWriter = GetCsvWriter(opts, csvWriters, @group, csvReader.HeaderRecord);
+                CsvWriter csvWriter = GetCsvWriter(opts, csvWriters, @group);
                 groupCounts.TryGetValue(@group, out long currentCount);
                 groupCounts[@group] = currentCount + 1;
                 csvWriter.WriteRecord(record);
@@ -121,22 +132,15 @@ public class Program
         Console.WriteLine("Exiting...");
     }
 
-    private static CsvWriter GetCsvWriter(Options opts, IDictionary<string, CsvWriter> csvWriters, string group,
-        string[] headerRecord)
+    private static CsvWriter GetCsvWriter(Options opts, IDictionary<string, CsvWriter> csvWriters, string group)
     {
         if (csvWriters.ContainsKey(group))
         {
             return csvWriters[group];
         }
 
-        StreamWriter writer = new(opts.OutputFilePath.Replace("{group}", group), false);
+        StreamWriter writer = new(opts.OutputFilePath.Replace(OutputFileNameGroupReplacementString, group), false);
         CsvWriter csvWriter = new(writer, CultureInfo.InvariantCulture);
-        foreach (string columnName in headerRecord)
-        {
-            csvWriter.WriteField(columnName);
-        }
-
-        csvWriter.NextRecord();
         csvWriters[group] = csvWriter;
         return csvWriter;
     }
